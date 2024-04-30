@@ -52,7 +52,6 @@ def create_summarize_command(llama_service: LlamaService):
 
         await update.message.reply_text("Working...")
         user_prompt = ' '.join(context.args)
-        print(context.args)
         generated_exercise = llama_service.summarize_text(user_prompt)
         await update.message.reply_text(generated_exercise)
 
