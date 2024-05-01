@@ -1,11 +1,14 @@
 import datetime
+import re
 from unittest import mock
+from unittest.mock import patch
 
 import pytest
 from telegram import Update, Message, User, Chat, MessageEntity
 from telegram.ext import Application
 
 from handlers.handlers import register_handlers
+from tests.comparators import AndPatternsComparator
 
 
 @pytest.fixture
@@ -35,7 +38,7 @@ async def telegram_application(llama_service, database_service, telegram_bot):
     yield application
 
 
-def assert_send_message(telegram_bot, text=mock.ANY):
+def assert_last_reply_message(telegram_bot, *, text=mock.ANY):
     telegram_bot.send_message.assert_called_with(
         chat_id=mock.ANY,
         text=text,
@@ -107,9 +110,9 @@ async def test_exercise_conversation(telegram_application, telegram_bot, llama_s
         )
     )
 
-    assert_send_message(
+    assert_last_reply_message(
         telegram_bot,
-        "Hi! Please type your prompt for the exercise. Type /cancel to cancel this exercise",
+        text="Hi! Please type your prompt for the exercise. Type /cancel to cancel this exercise",
     )
     assert len(telegram_bot.send_message.mock_calls) == 1
 
@@ -123,14 +126,13 @@ async def test_exercise_conversation(telegram_application, telegram_bot, llama_s
         )
     )
 
-    assert_send_message(
+    assert_last_reply_message(
         telegram_bot,
-        llama_message,
+        text=llama_message,
     )
     assert len(telegram_bot.send_message.mock_calls) == 3
 
-    llama_service.generate_exercise.assert_called_with(user_message)
-    assert len(llama_service.generate_exercise.mock_calls) == 1
+    llama_service.generate_exercise.assert_called_once_with(user_message)
 
     await telegram_application.process_update(
         Update(
@@ -140,3 +142,34 @@ async def test_exercise_conversation(telegram_application, telegram_bot, llama_s
     )
     assert len(telegram_bot.send_message.mock_calls) == 4
     assert len(llama_service.generate_exercise.mock_calls) == 1
+
+
+@patch("handlers.handlers.DEVELOPER_CHAT_ID", "111")
+@patch("handlers.handlers.DEVELOPER_MENTIONS", "@mention")
+async def test_error_handler(telegram_application, telegram_bot):
+    send_message_calls = 0
+
+    def send_message_side_effect(*args, **kwargs):
+        nonlocal send_message_calls
+        send_message_calls += 1
+        if send_message_calls <= 1:
+            raise ValueError("Could not send data :u")
+
+    telegram_bot.send_message = mock.AsyncMock(side_effect=send_message_side_effect)
+
+    await telegram_application.process_update(
+        Update(
+            update_id=1,
+            message=create_text_message(telegram_application, message_id=1, text="Some text"),
+        )
+    )
+
+    assert len(telegram_bot.send_message.mock_calls) == 3
+    telegram_bot.send_message.assert_any_call(
+        chat_id='111',
+        text=AndPatternsComparator(
+            re.compile("@mention"),
+            re.compile(r"ValueError: Could not send data :u"),
+        ),
+        parse_mode=mock.ANY,
+    )
