@@ -11,7 +11,7 @@ if api_token is None:
     print("API token not found in environment variables. Please set LLAMA_API_TOKEN.")
     exit(1)
 
-llama_service = LlamaService(api_token)
+llama_service = LlamaService(api_token, temperature=0.0)
 
 user_prompt = "Practice verb tenses with this exercise."
 
