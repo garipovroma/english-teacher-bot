@@ -76,7 +76,7 @@ class DatabaseService:
         conn.close()
         return topics
 
-    def get_topic_by_name(self, name):
+    def add_theory_card(self, topic_id, theory):
         conn = sqlite3.connect(self.db_file)
         c = conn.cursor()
         c.execute("INSERT INTO theory_cards (topic_id, theory) VALUES (?, ?)", (topic_id, theory))
