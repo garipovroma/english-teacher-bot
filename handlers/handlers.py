@@ -97,7 +97,39 @@ def create_summarize_command(llama_service: LlamaService):
 
 class ExerciseState:
     IN_PROGRESS = 1
+    TOPIC_SELECTION = 2
 
+def create_theory_command(database_service: DatabaseService):
+    async def theory_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        topics = database_service.get_all_topics()
+
+        data = ""
+        for topic in topics:
+            data += f"{topic[0]} - {topic[1]}\n"
+
+        await update.message.reply_text(f"Please select a topic by entering its ID:\n\n{data}")
+
+        return ExerciseState.TOPIC_SELECTION
+
+    return theory_command
+
+def create_topic_selection(database_service: DatabaseService):
+    async def topic_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        topic_id = update.message.text
+
+        if topic_id.isdigit():
+            card = database_service.get_theory_card_by_topic_id(int(topic_id))
+            if card:
+                await update.message.reply_text(card[0])
+            else:
+                await update.message.reply_text("No card found for the selected topic.")
+            
+            return ConversationHandler.END
+        else:
+            await update.message.reply_text("Wrong input. Try again.")
+            return ExerciseState.TOPIC_SELECTION
+
+    return topic_selection
 
 async def start_exercise_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
@@ -129,7 +161,6 @@ def create_exercise_replier(llama_service: LlamaService):
 
     return exercise_replier
 
-
 def register_handlers(application: Application, llama_service: LlamaService, database_service: DatabaseService):
     exercise_handler = ConversationHandler(
         entry_points=[CommandHandler("start_exercise", start_exercise_command)],
@@ -142,10 +173,17 @@ def register_handlers(application: Application, llama_service: LlamaService, dat
     )
     application.add_handler(exercise_handler)
 
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, help_command))
     application.add_handler(CommandHandler("help", help_command))
 
     application.add_handler(CommandHandler("start", start_command))
+
+    application.add_handler(ConversationHandler(
+         entry_points=[CommandHandler("theory", create_theory_command(database_service))],
+         states={
+            ExerciseState.TOPIC_SELECTION: [MessageHandler(filters.TEXT & ~filters.Command(), create_topic_selection((database_service)))]
+        },
+        fallbacks=[],
+    ))
 
     application.add_handler(CommandHandler("question", create_question_command(llama_service)))
     application.add_handler(CommandHandler("summarize", create_summarize_command(llama_service)))

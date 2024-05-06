@@ -56,7 +56,27 @@ class DatabaseService:
         conn.commit()
         conn.close()
     
-    def add_theory_card(self, topic_id, theory):
+    def get_theory_card_by_topic_id(self, topic_id):
+        conn = sqlite3.connect(self.db_file)
+        c = conn.cursor()
+
+        c.execute("SELECT theory FROM theory_cards WHERE topic_id = ?", (topic_id,))
+        card = c.fetchone()
+
+        conn.close()
+        return card
+
+    def get_all_topics(self):
+        conn = sqlite3.connect(self.db_file)
+        c = conn.cursor()
+
+        c.execute("SELECT (id, name) FROM topics")
+        topics = c.fetchall()
+
+        conn.close()
+        return topics
+
+    def get_topic_by_name(self, name):
         conn = sqlite3.connect(self.db_file)
         c = conn.cursor()
         c.execute("INSERT INTO theory_cards (topic_id, theory) VALUES (?, ?)", (topic_id, theory))
