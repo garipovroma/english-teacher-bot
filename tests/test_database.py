@@ -11,7 +11,7 @@ def database_service():
     db_file = 'test.db'
     yield DatabaseService(db_file)
     os.remove(db_file)
-
+    
 def test_create_tables(database_service):
     database_service.create_tables()
     conn = sqlite3.connect(database_service.db_file)
@@ -75,6 +75,23 @@ def test_get_all_topics(database_service):
     assert len(topics) == 2
     assert topics[0] == (1, 'Verb Tenses', 'Practice using different verb tenses in English', category_id)
     assert topics[1] == (2, 'Phrasal Verbs', 'Learn common phrasal verbs in English', category_id)
+
+def test_get_theory_card_by_topic_id(database_service):
+    database_service.add_topic('Test Topic', 'Test description', 1)
+    database_service.add_theory_card(1, 'Test theory')
+
+    theory_card = database_service.get_theory_card_by_topic_id(1)
+    assert theory_card[0] == 'Test theory'
+
+def test_get_all_topics(database_service):
+        category_id = database_service.add_category('Present and Past')
+        database_service.add_topic('Verb Tenses', 'Practice using different verb tenses in English', category_id)
+        database_service.add_topic('Phrasal Verbs', 'Learn common phrasal verbs in English', category_id)
+
+        topics = database_service.get_all_topics()
+        assert len(topics) ==  2
+        assert topics[0] == (1, 'Verb Tenses')
+        assert topics[1] == (2, 'Phrasal Verbs')
 
 def test_add_and_get_theory_card(database_service):
     category_id = database_service.add_category('Grammar Rules')

@@ -70,7 +70,7 @@ class DatabaseService:
         conn = sqlite3.connect(self.db_file)
         c = conn.cursor()
 
-        c.execute("SELECT (id, name) FROM topics")
+        c.execute("SELECT id, name FROM topics")
         topics = c.fetchall()
 
         conn.close()
@@ -113,13 +113,3 @@ class DatabaseService:
         c.execute("INSERT INTO exercises (topic_id, name, description) VALUES (?, ?, ?)", (topic_id, name, description))
         conn.commit()
         conn.close()
-
-    def get_all_topics(self):
-        conn = sqlite3.connect(self.db_file)
-        c = conn.cursor()
-
-        c.execute("SELECT * FROM topics")
-        topics = c.fetchall()
-
-        conn.close()
-        return topics

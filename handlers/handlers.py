@@ -60,11 +60,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     logger.info(f"Received /help command from {user.name}")
 
     help_message = (
-        "You can train your english language skills using these commands:"
-        "/help - show this message"
-        "/question <prompt> - generate a response to the given question."
-        "/summarize <prompt> - summarize the given text."
-        "/start_exercise - start an English exercise based on a prompt."
+        "You can train your english language skills using these commands\n"
+        "/help - show this message\n"
+        "/question <prompt> - generate a response to the given question.\n"
+        "/summarize <prompt> - summarize the given text.\n"
+        "/theory - get rheory information about some topic.\n"
+        "/start_exercise - start an English exercise based on a prompt.\n"
     )
     await update.message.reply_text(help_message)
 
@@ -101,6 +102,9 @@ class ExerciseState:
 
 def create_theory_command(database_service: DatabaseService):
     async def theory_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        user = update.effective_user
+        logger.info(f"Received /theory command from {user.name}")
+
         topics = database_service.get_all_topics()
 
         data = ""
@@ -116,6 +120,9 @@ def create_theory_command(database_service: DatabaseService):
 def create_topic_selection(database_service: DatabaseService):
     async def topic_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         topic_id = update.message.text
+
+        user = update.effective_user
+        logger.info(f"User {user.name} selected topic {topic_id}")
 
         if topic_id.isdigit():
             card = database_service.get_theory_card_by_topic_id(int(topic_id))
