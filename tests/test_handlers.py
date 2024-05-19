@@ -102,7 +102,8 @@ def create_text_message(telegram_application, message_id, text):
     return message
 
 
-async def test_exercise_conversation(telegram_application, telegram_bot, llama_service):
+async def test_exercise_conversation(telegram_application, telegram_bot, database_service, llama_service):
+    database_service.get_all_topics = mock.Mock(return_value=[(42, "Topic")])
     await telegram_application.process_update(
         Update(
             update_id=1,
@@ -112,36 +113,95 @@ async def test_exercise_conversation(telegram_application, telegram_bot, llama_s
 
     assert_last_reply_message(
         telegram_bot,
-        text="Hi! Please type your prompt for the exercise. Type /cancel to cancel this exercise",
+        text=AndPatternsComparator(re.compile(".*42 - Topic.*")),
     )
-    assert len(telegram_bot.send_message.mock_calls) == 1
+    assert len(telegram_bot.send_message.mock_calls) == 2
 
+    database_service.get_topic_by_id = mock.Mock(return_value=(42, "Topic", "Topic", 42))
     llama_message = "llama message"
     llama_service.generate_exercise = mock.Mock(return_value=llama_message)
-    user_message = "hello"
     await telegram_application.process_update(
         Update(
             update_id=2,
-            message=create_text_message(telegram_application, message_id=2, text=user_message),
+            message=create_text_message(telegram_application, message_id=2, text="42"),
         )
     )
 
+    assert len(telegram_bot.send_message.mock_calls) == 4
     assert_last_reply_message(
         telegram_bot,
         text=llama_message,
     )
-    assert len(telegram_bot.send_message.mock_calls) == 3
+    llama_service.generate_exercise.assert_called_once_with((42, "Topic", "Topic", 42))
+    database_service.get_topic_by_id.assert_called_once_with(42)
 
-    llama_service.generate_exercise.assert_called_once_with(user_message)
-
+    user_message = "answer"
     await telegram_application.process_update(
         Update(
             update_id=3,
-            message=create_text_message(telegram_application, message_id=3, text="hello"),
+            message=create_text_message(telegram_application, message_id=3, text=user_message),
         )
     )
-    assert len(telegram_bot.send_message.mock_calls) == 4
-    assert len(llama_service.generate_exercise.mock_calls) == 1
+
+    assert len(telegram_bot.send_message.mock_calls) == 8
+    assert_last_reply_message(
+        telegram_bot,
+        text=llama_message,
+    )
+    assert len(llama_service.generate_exercise.mock_calls) == 2
+    llama_service.generate_exercise.assert_called_with((42, "Topic", "Topic", 42))
+    assert len(database_service.get_topic_by_id.mock_calls) == 2
+    database_service.get_topic_by_id.assert_called_with(42)
+
+
+async def test_not_found_exercise_topic(telegram_application, telegram_bot, database_service, llama_service):
+    database_service.get_all_topics = mock.Mock(return_value=[])
+    database_service.get_topic_by_id = mock.Mock(return_value=None)
+    await telegram_application.process_update(
+        Update(
+            update_id=1,
+            message=create_command_message(telegram_application, message_id=1, text="/start_exercise"),
+        )
+    )
+    await telegram_application.process_update(
+        Update(
+            update_id=2,
+            message=create_text_message(telegram_application, message_id=2, text="42"),
+        )
+    )
+
+    assert len(telegram_bot.send_message.mock_calls) == 3
+    assert_last_reply_message(
+        telegram_bot,
+        text="Topic 42 does not exist. Try again.",
+    )
+    assert len(llama_service.generate_exercise.mock_calls) == 0
+    database_service.get_topic_by_id.assert_called_once_with(42)
+
+
+async def test_not_int_exercise_topic(telegram_application, telegram_bot, database_service, llama_service):
+    database_service.get_all_topics = mock.Mock(return_value=[])
+    database_service.get_topic_by_id = mock.Mock(return_value=None)
+    await telegram_application.process_update(
+        Update(
+            update_id=1,
+            message=create_command_message(telegram_application, message_id=1, text="/start_exercise"),
+        )
+    )
+    await telegram_application.process_update(
+        Update(
+            update_id=2,
+            message=create_text_message(telegram_application, message_id=2, text="test"),
+        )
+    )
+
+    assert len(telegram_bot.send_message.mock_calls) == 3
+    assert_last_reply_message(
+        telegram_bot,
+        text="Wrong input. Try again.",
+    )
+    assert len(llama_service.generate_exercise.mock_calls) == 0
+    assert len(database_service.get_topic_by_id.mock_calls) == 0
 
 
 @patch("handlers.handlers.DEVELOPER_CHAT_ID", "111")
@@ -160,7 +220,7 @@ async def test_error_handler(telegram_application, telegram_bot):
     await telegram_application.process_update(
         Update(
             update_id=1,
-            message=create_text_message(telegram_application, message_id=1, text="Some text"),
+            message=create_command_message(telegram_application, message_id=1, text="/start"),
         )
     )
 
