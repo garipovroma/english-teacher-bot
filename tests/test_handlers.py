@@ -179,6 +179,31 @@ async def test_not_found_exercise_topic(telegram_application, telegram_bot, data
     database_service.get_topic_by_id.assert_called_once_with(42)
 
 
+async def test_not_int_exercise_topic(telegram_application, telegram_bot, database_service, llama_service):
+    database_service.get_all_topics = mock.Mock(return_value=[])
+    database_service.get_topic_by_id = mock.Mock(return_value=None)
+    await telegram_application.process_update(
+        Update(
+            update_id=1,
+            message=create_command_message(telegram_application, message_id=1, text="/start_exercise"),
+        )
+    )
+    await telegram_application.process_update(
+        Update(
+            update_id=2,
+            message=create_text_message(telegram_application, message_id=2, text="test"),
+        )
+    )
+
+    assert len(telegram_bot.send_message.mock_calls) == 3
+    assert_last_reply_message(
+        telegram_bot,
+        text="Wrong input. Try again.",
+    )
+    assert len(llama_service.generate_exercise.mock_calls) == 0
+    assert len(database_service.get_topic_by_id.mock_calls) == 0
+
+
 @patch("handlers.handlers.DEVELOPER_CHAT_ID", "111")
 @patch("handlers.handlers.DEVELOPER_MENTIONS", "@mention")
 async def test_error_handler(telegram_application, telegram_bot):

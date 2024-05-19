@@ -20,7 +20,13 @@ DEVELOPER_MENTIONS = os.getenv("DEVELOPER_MENTIONS", "")
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    logger.error("Exception during processing user request", exc_info=context.error)
+    log_data = {}
+    if isinstance(update, Update):
+        log_data['chat.id'] = update.effective_chat.id
+        log_data['user.name'] = update.effective_user.name
+
+    logger.error(f"Exception during processing user request, log_data={log_data}",
+                 exc_info=context.error)
 
     traceback_list = traceback.format_exception(None, context.error, context.error.__traceback__)
     traceback_string = "".join(traceback_list)
@@ -51,7 +57,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     chat = update.effective_chat
-    logger.info(f"Received /start command from {user.name} in chat {chat.id}")
+    logger.info(f"Received /start command from {user.name}, chat.id = {chat.id}")
     await update.message.reply_html(
         rf"Hi {user.mention_html()}! Type /help to see what this bot can do!",
     )
@@ -59,7 +65,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
-    logger.info(f"Received /help command from {user.name}")
+    chat = update.effective_chat
+    logger.info(f"Received /help command from {user.name}, chat.id = {chat.id}")
 
     help_message = (
         "You can train your english language skills using these commands\n"
@@ -77,7 +84,8 @@ class TheoryState:
 def create_theory_command(database_service: DatabaseService):
     async def theory_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         user = update.effective_user
-        logger.info(f"Received /theory command from {user.name}")
+        chat = update.effective_chat
+        logger.info(f"Received /theory command from {user.name}, chat.id = {chat.id}")
 
         topics = database_service.get_all_topics()
 
@@ -97,7 +105,8 @@ def create_topic_selection(database_service: DatabaseService):
         topic_id = update.effective_message.text
 
         user = update.effective_user
-        logger.info(f"User {user.name} selected topic {topic_id}")
+        chat = update.effective_chat
+        logger.info(f"User {user.name} selected topic {topic_id}, chat.id = {chat.id}")
 
         if topic_id.isdigit():
             card = database_service.get_theory_card_by_topic_id(int(topic_id))
@@ -127,7 +136,8 @@ class ExerciseDataKey:
 def create_start_exercise_command(database_service: DatabaseService):
     async def start_exercise_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         user = update.effective_user
-        logger.info(f"Received /start_exercise command from {user.name}")
+        chat = update.effective_chat
+        logger.info(f"Received /start_exercise command from {user.name}, chat.id = {chat.id}")
 
         context.chat_data[ExerciseDataKey.SELECTED_TOPIC] = None
         context.chat_data[ExerciseDataKey.GENERATED_EXERCISE] = None
@@ -149,7 +159,8 @@ def create_start_exercise_command(database_service: DatabaseService):
 
 async def reply_with_exercise(update: Update, context: ContextTypes.DEFAULT_TYPE, llama_service: LlamaService, topic):
     user = update.effective_user
-    logger.info(f"Replying with exercise to {user.name}, topic id = {topic[0]}")
+    chat = update.effective_chat
+    logger.info(f"Replying with exercise to {user.name}, topic id = {topic[0]}, chat.id = {chat.id}")
 
     await update.message.reply_text("Generating exercise...\n"
                                     "Tip: type /cancel to cancel this exercise")
@@ -164,7 +175,8 @@ def create_exercise_topic_selection(database_service: DatabaseService, llama_ser
         topic_id = update.effective_message.text
 
         user = update.effective_user
-        logger.info(f"User {user.name} selected exercise topic {topic_id}")
+        chat = update.effective_chat
+        logger.info(f"User {user.name} selected exercise topic {topic_id}, chat.id = {chat.id}")
 
         if topic_id.isdigit():
             topic = database_service.get_topic_by_id(int(topic_id))
@@ -185,7 +197,8 @@ def create_exercise_topic_selection(database_service: DatabaseService, llama_ser
 def create_exercise_assessor(database_service: DatabaseService, llama_service: LlamaService):
     async def exercise_assessor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         user = update.effective_user
-        logger.info(f"Received exercise solution text from {user.name}")
+        chat = update.effective_chat
+        logger.info(f"Received exercise solution text from {user.name}, chat.id = {chat.id}")
 
         await update.message.reply_text("Assessing answer...")
 
@@ -205,7 +218,8 @@ def create_exercise_assessor(database_service: DatabaseService, llama_service: L
 
 async def cancel_exercise_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
-    logger.info(f"Received /cancel command from {user.name}")
+    chat = update.effective_chat
+    logger.info(f"Received /cancel command from {user.name}, chat.id = {chat.id}")
 
     await update.message.reply_text("Thank you for using our English Teacher Bot! Hope to see you back soon!")
 
