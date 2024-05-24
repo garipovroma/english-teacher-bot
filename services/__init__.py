@@ -2,8 +2,8 @@
 The services module contains the core functionality of the application.
 """
 
-from .llama_service import LlamaService
+from .llm_service import LLMService
 
 __all__ = [
-    'LlamaService',
+    'LLMService',
 ]
