@@ -8,7 +8,7 @@ from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters, Application, ConversationHandler
 
-from services import LlamaService
+from services import LLMService
 from services.database_service import DatabaseService
 
 dotenv.load_dotenv()
@@ -100,16 +100,16 @@ def create_theory_command(database_service: DatabaseService):
     return theory_command
 
 
-def create_topic_selection(database_service: DatabaseService):
+def create_topic_selection(database_service: DatabaseService, llama_service: LLMService):
     async def topic_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-        topic_id = update.effective_message.text
+        message = update.effective_message.text
 
         user = update.effective_user
         chat = update.effective_chat
-        logger.info(f"User {user.name} selected topic {topic_id}, chat.id = {chat.id}")
+        logger.info(f"User {user.name} selected topic {message}, chat.id = {chat.id}")
 
-        if topic_id.isdigit():
-            card = database_service.get_theory_card_by_topic_id(int(topic_id))
+        if message.isdigit():
+            card = database_service.get_theory_card_by_topic_id(int(message))
             if card:
                 await update.message.reply_text(card[0])
             else:
@@ -117,8 +117,20 @@ def create_topic_selection(database_service: DatabaseService):
 
             return ConversationHandler.END
         else:
-            await update.message.reply_text("Wrong input. Try again.")
-            return TheoryState.TOPIC_SELECTION
+            # USING LLM here to find the most suitable topic
+            topics = database_service.get_all_topics()
+            # getting only the topic names, the structure here is list of (id, topic) tuples
+            chosen_topic = llama_service.get_closest_topic(topics, message)
+            if chosen_topic.isdigit():
+                card = database_service.get_theory_card_by_topic_id(int(chosen_topic))
+                if card:
+                    await update.message.reply_text(card[0])
+                else:
+                    await update.message.reply_text("No card found for the selected topic.")
+            else:
+                await update.message.reply_text("Try again.")
+                return TheoryState.TOPIC_SELECTION
+            return ConversationHandler.END
 
     return topic_selection
 
@@ -157,7 +169,7 @@ def create_start_exercise_command(database_service: DatabaseService):
     return start_exercise_command
 
 
-async def reply_with_exercise(update: Update, context: ContextTypes.DEFAULT_TYPE, llama_service: LlamaService, topic):
+async def reply_with_exercise(update: Update, context: ContextTypes.DEFAULT_TYPE, llama_service: LLMService, topic):
     user = update.effective_user
     chat = update.effective_chat
     logger.info(f"Replying with exercise to {user.name}, topic id = {topic[0]}, chat.id = {chat.id}")
@@ -170,31 +182,45 @@ async def reply_with_exercise(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(generated_exercise)
 
 
-def create_exercise_topic_selection(database_service: DatabaseService, llama_service: LlamaService):
+def create_exercise_topic_selection(database_service: DatabaseService, llama_service: LLMService):
     async def topic_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-        topic_id = update.effective_message.text
+        message = update.effective_message.text
 
         user = update.effective_user
         chat = update.effective_chat
-        logger.info(f"User {user.name} selected exercise topic {topic_id}, chat.id = {chat.id}")
+        logger.info(f"User {user.name} selected exercise topic {message}, chat.id = {chat.id}")
 
-        if topic_id.isdigit():
-            topic = database_service.get_topic_by_id(int(topic_id))
+        if message.isdigit():
+            topic = database_service.get_topic_by_id(int(message))
             if not topic:
-                await update.message.reply_text(f"Topic {topic_id} does not exist. Try again.")
+                await update.message.reply_text(f"Topic {message} does not exist. Try again.")
                 return ExerciseState.TOPIC_SELECTION
 
-            context.chat_data[ExerciseDataKey.SELECTED_TOPIC] = int(topic_id)
+            context.chat_data[ExerciseDataKey.SELECTED_TOPIC] = int(message)
             await reply_with_exercise(update, context, llama_service, topic)
             return ExerciseState.EXERCISE
         else:
-            await update.message.reply_text("Wrong input. Try again.")
-            return ExerciseState.TOPIC_SELECTION
+            # USING LLM here to find the most suitable topic
+            topics = database_service.get_all_topics()
+            # getting only the topic names, the structure here is list of (id, topic) tuples
+            chosen_topic = llama_service.get_closest_topic(topics, message)
 
+            if chosen_topic.isdigit():
+                topic = database_service.get_topic_by_id(int(chosen_topic))
+                if not topic:
+                    await update.message.reply_text(f"Topic {chosen_topic} does not exist. Try again.")
+                    return ExerciseState.TOPIC_SELECTION
+
+                context.chat_data[ExerciseDataKey.SELECTED_TOPIC] = int(chosen_topic)
+                await reply_with_exercise(update, context, llama_service, topic)
+            else:
+                await update.message.reply_text("Try again.")
+                return ExerciseState.TOPIC_SELECTION
+            return ExerciseState.EXERCISE
     return topic_selection
 
 
-def create_exercise_assessor(database_service: DatabaseService, llama_service: LlamaService):
+def create_exercise_assessor(database_service: DatabaseService, llama_service: LLMService):
     async def exercise_assessor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         user = update.effective_user
         chat = update.effective_chat
@@ -226,7 +252,7 @@ async def cancel_exercise_command(update: Update, context: ContextTypes.DEFAULT_
     return ConversationHandler.END
 
 
-def register_handlers(application: Application, llama_service: LlamaService, database_service: DatabaseService):
+def register_handlers(application: Application, llama_service: LLMService, database_service: DatabaseService):
     exercise_handler = ConversationHandler(
         per_chat=True,
         per_user=False,
@@ -257,7 +283,7 @@ def register_handlers(application: Application, llama_service: LlamaService, dat
         entry_points=[CommandHandler("theory", create_theory_command(database_service))],
         states={
             TheoryState.TOPIC_SELECTION: [
-                MessageHandler(filters.TEXT & ~filters.Command(), create_topic_selection(database_service)),
+                MessageHandler(filters.TEXT & ~filters.Command(), create_topic_selection(database_service, llama_service)),
             ]
         },
         fallbacks=[],

@@ -7,11 +7,11 @@ from tqdm import tqdm
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Import the required service
-from services import LlamaService
+from services import LLMService
 
 def generate_theory_cards(api_token):
-    # Create an instance of the LlamaService
-    llama_service = LlamaService(api_token)
+    # Create an instance of the LLMService
+    llama_service = LLMService(api_token)
 
     # Load topics from CSV
     topics_csv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'topics.csv'))

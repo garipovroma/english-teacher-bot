@@ -6,7 +6,7 @@ from telegram import Update
 from telegram.ext import Application
 
 from handlers.handlers import register_handlers
-from services import LlamaService
+from services import LLMService
 from services.database_service import DatabaseService
 
 dotenv.load_dotenv()
@@ -25,7 +25,7 @@ def main() -> None:
         .token(os.environ["TELEGRAM_API_TOKEN"]) \
         .build()
     database_service = DatabaseService(os.environ["DB_FILE"])
-    llama_service = LlamaService(os.environ["LLAMA_API_TOKEN"])
+    llama_service = LLMService(os.environ["ANTHROPIC_API_TOKEN"])
     logger.info("Created services")
 
     register_handlers(application, llama_service, database_service)
