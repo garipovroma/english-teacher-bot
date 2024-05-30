@@ -133,6 +133,7 @@ async def test_exercise_conversation(telegram_application, telegram_bot, databas
         text=llama_message,
     )
     llama_service.generate_exercise.assert_called_once_with((42, "Topic", "Topic", 42))
+    database_service.add_exercise.assert_called_once_with(42, "Topic", llama_message)
     database_service.get_topic_by_id.assert_called_once_with(42)
 
     user_message = "answer"
@@ -195,7 +196,7 @@ async def test_not_int_exercise_topic(telegram_application, telegram_bot, databa
         )
     )
 
-    assert len(telegram_bot.send_message.mock_calls) == 3
+    assert len(telegram_bot.send_message.mock_calls) == 4
     assert_last_reply_message(
         telegram_bot,
         text="Wrong input. Try again.",
