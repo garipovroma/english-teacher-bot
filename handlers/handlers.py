@@ -169,7 +169,7 @@ def create_start_exercise_command(database_service: DatabaseService):
     return start_exercise_command
 
 
-async def reply_with_exercise(update: Update, context: ContextTypes.DEFAULT_TYPE, llama_service: LLMService, topic):
+async def reply_with_exercise(update: Update, context: ContextTypes.DEFAULT_TYPE, database_service: DatabaseService, llama_service: LLMService, topic):
     user = update.effective_user
     chat = update.effective_chat
     logger.info(f"Replying with exercise to {user.name}, topic id = {topic[0]}, chat.id = {chat.id}")
@@ -177,6 +177,10 @@ async def reply_with_exercise(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text("Generating exercise...\n"
                                     "Tip: type /cancel to cancel this exercise")
     generated_exercise = llama_service.generate_exercise(topic)
+    
+    if generated_exercise != "":
+        database_service.add_exercise(topic[0], topic[1], generated_exercise)
+
     context.chat_data[ExerciseDataKey.GENERATED_EXERCISE] = generated_exercise
 
     await update.message.reply_text(generated_exercise)
@@ -197,7 +201,7 @@ def create_exercise_topic_selection(database_service: DatabaseService, llama_ser
                 return ExerciseState.TOPIC_SELECTION
 
             context.chat_data[ExerciseDataKey.SELECTED_TOPIC] = int(message)
-            await reply_with_exercise(update, context, llama_service, topic)
+            await reply_with_exercise(update, context, database_service, llama_service, topic)
             return ExerciseState.EXERCISE
         else:
             # USING LLM here to find the most suitable topic
@@ -212,7 +216,7 @@ def create_exercise_topic_selection(database_service: DatabaseService, llama_ser
                     return ExerciseState.TOPIC_SELECTION
 
                 context.chat_data[ExerciseDataKey.SELECTED_TOPIC] = int(chosen_topic)
-                await reply_with_exercise(update, context, llama_service, topic)
+                await reply_with_exercise(update, context, database_service, llama_service, topic)
             else:
                 await update.message.reply_text("Try again.")
                 return ExerciseState.TOPIC_SELECTION
@@ -236,7 +240,7 @@ def create_exercise_assessor(database_service: DatabaseService, llama_service: L
         answer_assessment = llama_service.assess_exercise_answer(topic, generated_exercise, user_answer)
         await update.message.reply_text(answer_assessment)
 
-        await reply_with_exercise(update, context, llama_service, topic)
+        await reply_with_exercise(update, context, database_service, llama_service, topic)
         return ExerciseState.EXERCISE
 
     return exercise_assessor
